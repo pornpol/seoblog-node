@@ -1,5 +1,5 @@
 const express = require('express');
-const { create } = require('../controllers/category');
+const { create, list, read, remove } = require('../controllers/category');
 
 const router = express.Router();
 
@@ -16,5 +16,8 @@ router.post(
   adminMiddleware,
   create
 );
+router.get('/categories', list);
+router.get('/category/:slug', read);
+router.delete('/category/:slug', requireSignin, adminMiddleware, remove);
 
 module.exports = router;
