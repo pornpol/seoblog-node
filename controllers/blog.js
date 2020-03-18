@@ -7,6 +7,7 @@ const stripHtml = require('string-strip-html');
 const _ = require('lodash');
 const { errorHandler } = require('../helpers/dbErrorHandler');
 const fs = require('fs');
+const { smartTrim } = require('../helpers/blog');
 
 exports.create = (req, res) => {
   let form = new formidable.IncomingForm();
@@ -20,15 +21,40 @@ exports.create = (req, res) => {
 
     const { title, body, categories, tags } = fields;
 
+    if (!title || !title.length) {
+      return res.status(400).json({
+        error: 'title is required'
+      });
+    }
+
+    if (!body || body.length < 200) {
+      return res.status(400).json({
+        error: 'Content is to short'
+      });
+    }
+
+    if (!categories || categories.length === 0) {
+      return res.status(400).json({
+        error: 'At least one category is required'
+      });
+    }
+
+    if (!tags || tags.length === 0) {
+      return res.status(400).json({
+        error: 'At least one tag is required'
+      });
+    }
+
     let blog = new Blog();
-    blog.tilte = title;
+    blog.title = title;
     blog.body = body;
+    blog.excerpt = smartTrim(body, 320, ' ', '...');
     blog.slug = slugify(title).toLowerCase();
     blog.mtilte = `${title} | ${process.env.APP_NAME}`;
     blog.mdesc = stripHtml(body.substring(0, 160));
     blog.postedBy = req.user._id;
-    // blog.categories = categories;
-    // blog.tags = tags;
+    let arrayOfCategories = categories && categories.split(',');
+    let arrayOfTags = tags && tags.split(',');
 
     if (files.photo) {
       if (files.photo.size > 1000000) {
@@ -46,7 +72,36 @@ exports.create = (req, res) => {
           error: errorHandler(err)
         });
       }
-      res.json(result);
+      // res.json(result);
+      Blog.findByIdAndUpdate(
+        result._id,
+        {
+          $push: { categories: arrayOfCategories }
+        },
+        { new: true }
+      ).exec((err, result) => {
+        if (err) {
+          return res.status(400).json({
+            error: errorHandler(err)
+          });
+        } else {
+          Blog.findByIdAndUpdate(
+            result._id,
+            {
+              $push: { tags: arrayOfTags }
+            },
+            { new: true }
+          ).exec((err, result) => {
+            if (err) {
+              return res.status(400).json({
+                error: errorHandler(err)
+              });
+            } else {
+              res.json(result);
+            }
+          });
+        }
+      });
     });
   });
 };
