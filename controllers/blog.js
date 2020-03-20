@@ -283,3 +283,23 @@ exports.photo = (req, res) => {
       return res.send(blog.photo.data);
     });
 };
+
+exports.listRelated = (req, res) => {
+  let limit = req.body.limit ? parseInt(req.body.limit) : 3;
+
+  const { _id, categories } = req.body.blog;
+
+  Blog.find({ _id: { $ne: _id }, categories: { $in: categories } })
+    .limit(limit)
+    .populate('postedBy', '_id name profile')
+    .select('title slug excerpt postedBy createdAt updatedAt')
+    .exec((err, blogs) => {
+      if (err) {
+        returnres.status(400).json({
+          error: 'Blogs not found'
+        });
+      }
+      console.log(blogs);
+      res.json(blogs);
+    });
+};
