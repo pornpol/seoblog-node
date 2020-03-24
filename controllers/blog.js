@@ -299,7 +299,6 @@ exports.listRelated = (req, res) => {
           error: 'Blogs not found'
         });
       }
-      console.log(blogs);
       res.json(blogs);
     });
 };
