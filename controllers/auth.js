@@ -1,7 +1,9 @@
 const User = require('../models/user');
+const Blog = require('../models/blog');
 const shortId = require('shortid');
 const jwt = require('jsonwebtoken');
 const expressJwt = require('express-jwt');
+const { errorHandler } = require('../helpers/dbErrorHandler.js');
 
 exports.signup = (req, res) => {
   User.findOne({ email: req.body.email }).exec((err, user) => {
@@ -100,6 +102,24 @@ exports.adminMiddleware = (req, res, next) => {
       });
     }
     req.profile = user;
+    next();
+  });
+};
+
+exports.canUpdateDeleteBlog = (req, res, next) => {
+  const slug = req.params.slug.toLowerCase();
+  Blog.findOne({ slug }).exec((err, data) => {
+    if (err) {
+      return res.status(400).json({
+        error: errorHandler(err)
+      });
+    }
+    let authUser = data.postedBy._id.toString() === req.profile._id.toString();
+    if (!authUser) {
+      return res.status(400).json({
+        error: 'You are not authorized'
+      });
+    }
     next();
   });
 };
