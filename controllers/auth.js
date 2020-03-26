@@ -4,6 +4,10 @@ const shortId = require('shortid');
 const jwt = require('jsonwebtoken');
 const expressJwt = require('express-jwt');
 const { errorHandler } = require('../helpers/dbErrorHandler.js');
+const _ = require('lodash');
+
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 exports.signup = (req, res) => {
   User.findOne({ email: req.body.email }).exec((err, user) => {
@@ -18,16 +22,13 @@ exports.signup = (req, res) => {
     let profile = `${process.env.CLIENT_URL}/profile/${username}`;
 
     let newUser = new User({ name, email, password, profile, username });
-    newUser.save((err, sucess) => {
+    newUser.save((err, success) => {
       if (err) {
         return res.status(400).json({
           error: err
         });
       }
-      // res.json({
-      //   user: sucess
-      // });
-      res.json({ message: 'Signup sucess! Please signin' });
+      res.json({ message: 'Signup success! Please signin' });
     });
   });
 };
@@ -122,4 +123,91 @@ exports.canUpdateDeleteBlog = (req, res, next) => {
     }
     next();
   });
+};
+
+exports.forgotPassword = (req, res) => {
+  const { email } = req.body;
+
+  User.findOne({ email }, (err, user) => {
+    if (err || !user) {
+      return res.status(401).json({
+        error: 'User with that email does not exist'
+      });
+    }
+
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_RESET_PASSWORD, {
+      expiresIn: '10m'
+    });
+
+    // email
+    const emailData = {
+      from: process.env.EMAIL_FROM,
+      to: email,
+      subject: `Password reset link`,
+      html: `
+          <p>Please use the following link to reset your password:</p>
+          <p>${process.env.CLIENT_URL}/auth/password/reset/${token}</p>
+          <hr />
+          <p>This email may contain sesitive information</p>
+          <p>https://9pol.dev</p>
+        `
+    };
+
+    // populateing the db > user > resetPasswordLink
+    return user.updateOne({ resetPasswordLink: token }, (err, success) => {
+      if (err) {
+        return res.json({
+          error: errorHandler(err)
+        });
+      } else {
+        sgMail.send(emailData).then(sent => {
+          return res.json({
+            message: `Email has been sent to ${email}. Link will expire in 10 minutes`
+          });
+        });
+      }
+    });
+  });
+};
+
+exports.resetPassword = (req, res) => {
+  const { resetPasswordLink, newPassword } = req.body;
+
+  if (resetPasswordLink) {
+    jwt.verify(
+      resetPasswordLink,
+      process.env.JWT_RESET_PASSWORD,
+      (err, decoded) => {
+        if (err) {
+          return res.status(401).json({
+            error: 'Expired link. Try again'
+          });
+        }
+        User.findOne({ resetPasswordLink }, (err, user) => {
+          if (err || !user) {
+            return res.status(401).json({
+              error: 'Something went wrong. Try again'
+            });
+          }
+          const updatedField = {
+            password: newPassword,
+            resetPasswordLink: ''
+          };
+
+          user = _.extend(user, updatedField);
+
+          user.save((err, result) => {
+            if (err) {
+              return res.status(400).json({
+                error: errorHandler(err)
+              });
+            }
+            res.json({
+              message: `Great! Now you can login with new password`
+            });
+          });
+        });
+      }
+    );
+  }
 };
