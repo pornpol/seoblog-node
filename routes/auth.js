@@ -1,5 +1,6 @@
 const express = require('express');
 const {
+  preSignup,
   signup,
   signin,
   signout,
@@ -19,7 +20,8 @@ const {
   resetPasswordValidator
 } = require('../validators/auth');
 
-router.post('/signup', userSignupValidator, runValidation, signup);
+router.post('/pre-signup', userSignupValidator, runValidation, preSignup);
+router.post('/signup', signup);
 router.post('/signin', userSigninValidator, runValidation, signin);
 router.get('/signout', signout);
 router.put(
